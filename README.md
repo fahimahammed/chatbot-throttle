@@ -244,19 +244,133 @@ Authorization: Bearer <jwt_token>
 3. Check `/api/status` to see remaining requests.
 4. Observe **429 error** when the limit is exceeded.
 
-**Example using curl**:
+---
+
+## Testing Rate Limiting (All User Types)
+
+### 1. Guest User (No Authorization Header)
+
+**Limit**: 3 requests per hour
 
 ```bash
-# Login as Free user
+# Guest request 1
+curl -X POST http://localhost:3000/api/chat \
+-H "Content-Type: application/json" \
+-d '{"message":"Hello AI"}'
+
+# Guest request 2
+curl -X POST http://localhost:3000/api/chat \
+-H "Content-Type: application/json" \
+-d '{"message":"How are you?"}'
+
+# Guest request 3
+curl -X POST http://localhost:3000/api/chat \
+-H "Content-Type: application/json" \
+-d '{"message":"Tell me a joke"}'
+
+# Guest request 4 → Exceeds limit
+curl -X POST http://localhost:3000/api/chat \
+-H "Content-Type: application/json" \
+-d '{"message":"Another request"}'
+```
+
+**Expected Response for 4th request**:
+
+```json
+{
+  "success": false,
+  "error": "Too many requests. guest users can make 3 requests per hour.",
+  "remaining_requests": 0
+}
+```
+
+---
+
+### 2. Free User (Logged-in)
+
+**Limit**: 10 requests per hour
+
+```bash
+# Login as Free user (fahimahammed)
 curl -X POST http://localhost:3000/api/login \
 -H "Content-Type: application/json" \
 -d '{"username":"fahimahammed","password":"fahim123"}'
 
-# Chat request
-curl -X POST http://localhost:3000/api/chat \
--H "Authorization: Bearer <jwt_token>" \
+# Copy the returned token
+TOKEN=<paste_jwt_token_here>
+
+# Make 11 chat requests
+for i in {1..11}; do
+  curl -X POST http://localhost:3000/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Hello AI"}'
+done
+```
+
+**Expected Response for 11th request**:
+
+```json
+{
+  "success": false,
+  "error": "Too many requests. free users can make 10 requests per hour.",
+  "remaining_requests": 0
+}
+```
+
+---
+
+### 3. Premium User (Logged-in)
+
+**Limit**: 50 requests per hour
+
+```bash
+# Login as Premium user (firoz)
+curl -X POST http://localhost:3000/api/login \
 -H "Content-Type: application/json" \
--d '{"message":"Hello AI"}'
+-d '{"username":"firoz","password":"firoz123"}'
+
+# Copy the returned token
+TOKEN=<paste_jwt_token_here>
+
+# Make 51 chat requests
+for i in {1..51}; do
+  curl -X POST http://localhost:3000/api/chat \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Hello AI"}'
+done
+```
+
+**Expected Response for 51st request**:
+
+```json
+{
+  "success": false,
+  "error": "Too many requests. premium users can make 50 requests per hour.",
+  "remaining_requests": 0
+}
+```
+
+---
+
+### 4. Check Remaining Requests
+
+You can check remaining quota for any user type:
+
+```bash
+curl -X GET http://localhost:3000/api/status \
+-H "Authorization: Bearer $TOKEN"
+```
+
+**Sample Response**:
+
+```json
+{
+  "success": true,
+  "message": "You are a free user & your request limit is 10 AI questions per hour.",
+  "remaining_requests": 7
+}
 ```
 
 ---
