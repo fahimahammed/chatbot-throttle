@@ -37,7 +37,7 @@ The system uses a **fixed window rate limiter** to manage AI usage.
 
 ### Architecture Diagram
 
-![System Design](./assets/chatbot-ratelimiter-sd.png)
+![System Design](./assets/sd.png)
 *Illustrates rate limiting for `/api/chat` endpoint.*
 
 ### Flow:
