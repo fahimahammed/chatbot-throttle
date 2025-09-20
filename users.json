@@ -1,0 +1,20 @@
+[
+    {
+        "id": "user-1",
+        "type": "free",
+        "username": "fahimahammed",
+        "password": "fahim123"
+    },
+    {
+        "id": "user-2",
+        "type": "free",
+        "username": "shanto",
+        "password": "shanto123"
+    },
+    {
+        "id": "user-3",
+        "type": "premium",
+        "username": "firoz",
+        "password": "firoz123"
+    }
+]
