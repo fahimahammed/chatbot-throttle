@@ -1,44 +1,283 @@
-AI Chat Rate Limiter with Vercel AI SDK
-Context
-You are building a chatbot using Vercel AI SDK for a company website.
-The company needs to control AI usage costs by limiting how many questions different users can ask per hour.
+# Chatbot Throttle
 
-Task Description
-Create a rate limiter that allows different request limits based on user type:
+**AI Chat Rate Limiter with Vercel AI SDK**
 
-Guest users: 3 AI questions per hour
-Free users: 10 AI questions per hour
-Premium users: 50 AI questions per hour
-Requirements
-Use Fixed Window rate limiting (1-hour windows).
-Track by user ID (logged in) or IP address (guests).
-Integrate with Vercel AI SDK for actual AI responses.
-Check rate limits before calling AI to save costs.
-Return clear error messages when limits are exceeded.
-API Endpoints
-POST /api/chat – Send message to AI (rate limited)
-POST /api/login – Get user token
-GET /api/status – Check remaining requests
-Example Responses
-Success Response:
+---
 
+## Project Overview
+
+This project is a **chatbot backend** built with **Node.js/Express** using the **Vercel AI SDK**. It enforces **rate limits** for different user types to **control AI usage costs**.
+
+| User Type | AI Questions per Hour | Notes                                      |
+| --------- | --------------------- | ------------------------------------------ |
+| Guest     | 3                     | No Authorization header -> treated as Guest |
+| Free      | 10                    | Logged-in user with Free plan              |
+| Premium   | 50                    | Logged-in user with Premium plan           |
+
+The backend tracks users by **user ID** (logged-in) or **IP address** (guests) and uses a **fixed window rate limiting algorithm** to prevent excessive AI calls.
+
+---
+
+## Features
+
+* **Fixed Window Rate Limiting** (1-hour window)
+* **User Types**: `Guest`, `Free`, `Premium`
+* **JWT-based authentication** for logged-in users
+* **In-memory request tracking**
+* **Vercel AI SDK integration** with OpenAI `gpt-4o-mini`
+* **Clear error messages** when rate limits are exceeded
+* **Mock user data** stored in `users.json`
+* **Environment configuration** via `.env` and `config.js`
+
+---
+
+## System Design
+
+The system uses a **fixed window rate limiter** to manage AI usage.
+
+### Architecture Diagram
+
+![System Design](./assets/chatbot-ratelimiter-sd.png)
+*Illustrates rate limiting for `/api/chat` endpoint.*
+
+### Flow:
+
+1. Client sends a request to `/api/chat`.
+2. Middleware `authenticate` checks the JWT token. If missing, user is treated as **Guest**.
+3. `rateLimiter` checks usage for the current 1-hour window:
+
+   * **Logged-in users** tracked by `user.id`
+   * **Guests** tracked by `req.ip`
+4. If within limit, the request is sent to **Vercel AI SDK** to generate a response.
+5. AI response returned along with **remaining requests**.
+6. If limit is exceeded, server responds with **429 status** and an error message.
+
+---
+
+## Project Structure
+
+```
+chatbot-throttle/
+│
+├─ assets/           # System design images
+├─ config.js         # Environment variables and defaults
+├─ constants.js      # Rate limits and time window constants
+├─ server.js         # Express server & API endpoints
+├─ users.json        # Mock user database
+├─ package.json      # Project metadata and scripts
+├─ README.md         # Documentation
+├─ node_modules/     
+└─ pnpm-lock.yaml    
+```
+
+---
+
+## Setup Instructions
+
+1. **Clone the repository**:
+
+```bash
+git clone https://github.com/fahimahammed/chatbot-throttle.git
+cd chatbot-throttle
+```
+
+2. **Install dependencies**:
+
+```bash
+pnpm install
+```
+
+3. **Create `.env` file**:
+
+```env
+PORT=3000
+JWT_SECRET=supersecret
+JWT_EXPIRES_IN=1h
+OPENAI_API_KEY=your_openai_api_key
+```
+
+4. **Run in development mode**:
+
+```bash
+pnpm dev
+```
+
+Server will start on `http://localhost:3000`.
+
+---
+
+## API Endpoints
+
+### 1. Login
+
+**POST** `/api/login`
+
+**Description**: Authenticates a user using mock `users.json` data and returns a JWT token.
+
+**Request Body**:
+
+```json
+{
+  "username": "fahimahammed",
+  "password": "fahim123"
+}
+```
+
+**Response** (Success):
+
+```json
+{
+    "success": true,
+    "message": "User logged in successfully!",
+    "token": "**********************************"
+}
+```
+
+**Response** (Failure):
+
+```json
+{
+    "success": false,
+    "message": "Invalid username or password!",
+    "error": "Invalid login request"
+}
+```
+
+---
+
+### 2. Chat (Rate-limited)
+
+**POST** `/api/chat`
+
+**Headers**:
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+*If missing, the request is treated as a **Guest**.*
+
+**Request Body**:
+
+```json
+{
+  "message": "I want to learn rate limiting. Give me a roadmap for this."
+}
+```
+
+**Response** (Success):
+
+```json
 {
   "success": true,
   "message": "AI response here...",
   "remaining_requests": 7
 }
-Rate Limit Response:
+```
 
+**Response** (Rate Limit Exceeded):
+
+```json
 {
   "success": false,
   "error": "Too many requests. Free users can make 10 requests per hour.",
   "remaining_requests": 0
 }
-Implementation Notes
-Use Node.js/Express.
-Store limits in memory.
-Include test examples showing the rate limiting works for all user types.
-Project Submission :
- Finish within timeframes
- Make proper project documentation
-Submit Link : https://forms.gle/vZw8sDGF6Z7tuXnJ9
+```
+
+---
+
+### 3. Check Status
+
+**GET** `/api/status`
+
+**Headers**:
+
+```
+Authorization: Bearer <jwt_token>
+```
+
+*If missing, treated as **Guest**.*
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "message": "You are a free user & your request limit is 10 AI questions per hour.",
+  "remaining_requests": 7
+}
+```
+
+---
+
+## Rate Limiter Implementation
+
+* **Fixed Window**: Tracks requests in a 1-hour window.
+* **Tracking**:
+
+  * Logged-in users: by `user.id`
+  * Guests: by `req.ip`
+* **In-memory store**:
+
+```js
+{
+  key: {
+    count: number,
+    windowStart: timestamp
+  }
+}
+```
+
+* **Behavior**:
+
+  * Increment `count` for requests within the window
+  * Reset `count` and `windowStart` after 1 hour
+  * Return **429** when the limit is exceeded
+
+---
+
+## Testing Rate Limiting
+
+1. Login as a user or use guest (no token).
+2. Make multiple `/api/chat` requests within an hour.
+3. Check `/api/status` to see remaining requests.
+4. Observe **429 error** when the limit is exceeded.
+
+**Example using curl**:
+
+```bash
+# Login as Free user
+curl -X POST http://localhost:3000/api/login \
+-H "Content-Type: application/json" \
+-d '{"username":"fahimahammed","password":"fahim123"}'
+
+# Chat request
+curl -X POST http://localhost:3000/api/chat \
+-H "Authorization: Bearer <jwt_token>" \
+-H "Content-Type: application/json" \
+-d '{"message":"Hello AI"}'
+```
+
+---
+
+## Dependencies
+
+* `express` – Web server
+* `body-parser` – Parse JSON request bodies
+* `jsonwebtoken` – JWT authentication
+* `dotenv` – Environment variable management
+* `@ai-sdk/openai` + `ai` – Vercel AI SDK integration
+
+**Dev Dependencies**:
+
+* `nodemon` – Auto-reload for development
+
+---
+
+## Notes
+
+* In-memory storage resets on server restart. Use Redis or a database for production.
+* Mock users are for testing purposes only.
+* `OPENAI_API_KEY` must be set in `.env` for AI calls.
+* Rate limits can be adjusted in `constants.js`.
